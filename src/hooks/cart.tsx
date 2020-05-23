@@ -25,28 +25,83 @@ interface CartContext {
 
 const CartContext = createContext<CartContext | null>(null);
 
+const incrementProductsInCart = (
+  previousStateProducts: Product[],
+  id: string,
+): Product[] => {
+  return previousStateProducts.map(product => {
+    if (product.id === id) {
+      return { ...product, quantity: product.quantity + 1 };
+    }
+    return product;
+  });
+};
+
 const CartProvider: React.FC = ({ children }) => {
   const [products, setProducts] = useState<Product[]>([]);
 
   useEffect(() => {
     async function loadProducts(): Promise<void> {
-      // TODO LOAD ITEMS FROM ASYNC STORAGE
+      const product = await AsyncStorage.getItem('@goMarketplace: card');
+
+      if (product) {
+        const parsedProducts: Product[] = await JSON.parse(product);
+        setProducts(parsedProducts);
+      }
     }
 
     loadProducts();
   }, []);
 
-  const addToCart = useCallback(async product => {
-    // TODO ADD A NEW ITEM TO THE CART
-  }, []);
+  const updateStorage = useCallback(async () => {
+    await AsyncStorage.setItem(
+      '@goMarketplace: card',
+      JSON.stringify(products),
+    );
+  }, [products]);
 
-  const increment = useCallback(async id => {
-    // TODO INCREMENTS A PRODUCT QUANTITY IN THE CART
-  }, []);
+  const addToCart = useCallback(
+    async product => {
+      setProducts(previousStateProducts => {
+        const indexProduct = previousStateProducts.findIndex(
+          prod => prod.id === product.id,
+        );
 
-  const decrement = useCallback(async id => {
-    // TODO DECREMENTS A PRODUCT QUANTITY IN THE CART
-  }, []);
+        if (indexProduct !== -1) {
+          return incrementProductsInCart(previousStateProducts, product.id);
+        }
+
+        return [...previousStateProducts, { ...product, quantity: 1 }];
+      });
+      await updateStorage();
+    },
+    [updateStorage],
+  );
+
+  const increment = useCallback(
+    async id => {
+      setProducts(previousStateProducts =>
+        incrementProductsInCart(previousStateProducts, id),
+      );
+      await updateStorage();
+    },
+    [updateStorage],
+  );
+
+  const decrement = useCallback(
+    async id => {
+      setProducts(previousStateProducts => {
+        return previousStateProducts.map(product => {
+          if (product.id === id && product.quantity > 1) {
+            return { ...product, quantity: product.quantity - 1 };
+          }
+          return product;
+        });
+      });
+      await updateStorage();
+    },
+    [updateStorage],
+  );
 
   const value = React.useMemo(
     () => ({ addToCart, increment, decrement, products }),
